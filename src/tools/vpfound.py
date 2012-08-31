@@ -103,6 +103,8 @@ if __name__ == "__main__":
     elif command == 'grade':
         grade()
         pass
+    else command == 'run':
+        print "python -m CGIHTTPServer"
     else:
         print "cannot find command %s" % command
         help()
