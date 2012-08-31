@@ -1,0 +1,13 @@
+vim 插件工具, 用来发现好的插件。
+可抓取vim.org上面的所有插件的数据。
+vim.org上的插件排序有点弱，因此重做了这个排序。
+按照智能排序算法，让优秀的插件脱颖而出.
+
+
+Usage: 在webroot目录下执行 python -m CGIHTTPServer
+然后在浏览器中访问 
+http://localhost:8000/cgi-bin/main.py
+即可
+可根据score, ratings, downloads排序
+并可选定插件的开发时间，快速发现新的好插件
+

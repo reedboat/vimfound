@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS scripts;
+CREATE TABLE scripts(
+   id INT PRIMARY KEY,
+   name VARCHAR(256) NOT NULL DEFAULT '',
+   type VARCHAR(32) NOT NULL DEFAULT '',
+   desc TEXT NOT NULL DEFAULT '',
+   user VARCHAR(64) NOT NULL DEFAULT '',
+   user_link VARCHAR(64) NOT NULL DEFAULT '',
+   create_date VARCHAR(16) NOT NULL DEFAULT '',
+   update_date VARCHAR(16) NOT NULL DEFAULT '',
+   ratings INT NOT NULL DEFAULT 0,
+   ratings_count INT NOT NULL DEFAULT 0,
+   downloads INT NOT NULL DEFAULT 0,
+   versions INT NOT NULL DEFAULT 0,
+   curr_version VARCHAR(64) NOT NULL DEFAULT '',
+   score DOUBLE NOT NULL DEFAULT 0
+   );
