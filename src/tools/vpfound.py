@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 
-import sys, traceback,time,datetime
+import sys, traceback,time,datetime, string
 import cgi
-import os
+from os import path
+from optparse import OptionParser
+
 reload(sys)
 sys.setdefaultencoding("utf-8")
 
-CUR_DIR =os.path.dirname(os.path.realpath(__file__))
+CUR_DIR =path.dirname(path.realpath(__file__))
 ROOT_DIR = CUR_DIR + '/..'
 LIB_DIR  = ROOT_DIR  + '/lib/vim'
 DATA_DIR = ROOT_DIR  + '/data'
@@ -20,99 +22,209 @@ import gl
 
 gl.DATA_DIR = DATA_DIR
 
-def help(command=None):
-    doc='''
-Usage: %s [command] [args]
-
-command is valid operation.
-
-    command:
-        help
-        update -- update scripts db
-        grade  -- update scripts score
-        top    -- show scripts rank
-        search -- search scripts by keyword
-        detail -- show script detail
-        info   -- show repositry info
-
-args is related with specific command
+def update(new=True, begin=0, end=0, ids=[]):
+    fetcher = Fetcher()
+    if new: 
+        count=fetcher.fetchNew()
+    elif len(ids) == 0:
+        count=fetcher.fetchAll(begin, end)
+    else:
+        count=fetcher.fetchSelected(ids)
+    print "%d items updated" % count
         
-    command args:
-        update: [from [to]] -- specify update range
-            from -- update range id begin, default 0
-            to   -- update range id end, default 0
 
-        grade [id] 
-            id   -- only grade one script when id supplied
-       
-        top [len]
-            col  -- column used to sort by 
-            len  -- returned items count
-            year -- only return created in latest n years data when supplied
+def top(sort, year, limit):
+    table=PluginTable()
+    if year != 0:
+        date = datetime.date.fromtimestamp(time.time() - year*365 * 86400).strftime("%Y-%m-%d")
+        condition = "create_date > '"+date+"'"
+    else:
+        condition = ''
 
-        search [type, year,sort, page, len]
+    rows = table.query(condition, sort, limit)
+    template = ("%-5d %-30s %-15s %s")
+    i=0
+    print "%-5s %-30s %-15s %s" % ("rank", "name", sort, 'desc')
+    for row in rows:
+        i=i+1
+        print template % (i, row['name'], str(row[sort]), row['desc'])
+        
 
-        detail id
-            id   -- script id, required 
+def search(keyword, more=False):
+    table=PluginTable()
+    condition="(name like '%"+keyword+"%'"
+    if more:
+        condition+="or desc like '%"+keyword+"%')"
+    else:
+        condition+=")"
 
-        info: no args
-        '''
-    print doc % sys.argv[0]
+    rows = table.query(condition)
+    for row in rows:
+        print string.Template("$name \t$score \t$desc").substitute(row)
 
-def update_db(id=0):
-    pass
+def detail(name):
+    try:
+        id  = int(name)
+    except:
+        id  = 0
+    table = PluginTable()
+    if id > 0:
+        plugin = table.findById(id)
+    else:
+        plugin = table.findByName(name)
 
-def top_scripts():
-    pass
+    if plugin:
+        printPlugin(plugin)
+    else:
+        print "Sorry, we cannot find plugin %s for you" % name
 
-def search(keyword):
-    pass
+def grade(name=None):
+    grader = Grader()
+    if not name:
+        count = grader.calc()
+        print "jobs done, scores of %d plugins updated" % count
+        return 
 
-def detail(name='', id=0):
-    pass
+    try:
+        id = int(name)
+    except:
+        id = 0
 
-def grade(id=0):
-    pass
+    table = PluginTable()
+    if id:
+        plugin = table.findById(id)
+    else:
+        plugin = table.findByName(name)
+
+    if plugin:
+        grader.calc(data=plugin)
+    else:
+        print "Sorry, we cannot find plugin %s" % name 
+
 
 def info():
-    pass
+    table = PluginTable()
+    row = table.getLast()
+    update_date = row['update_date']
+    total = table.count()
+    print '''
+    vim plugins info
+    total: %d, 
+    last updated at %s 
+    ''' % (total, update_date)
 
+def printPlugin(data):
+    tpl='''
+   plugin  --  $name (id:$id $type)  
+   score   --  $score 
+   date    --  created:$create_date  updated:$update_date
+   stats   --  rating:$ratings/$ratings_count downloas:$downloads
+   desc    --  $desc
+    '''
+    print string.Template(tpl).substitute(data)
+
+def help():
+    MSG_USAGE='''%s <command> [options]
+command is valid operation.
+command can be:
+    help   -- list help
+    update -- update scripts data
+    grade  -- calucate scripts score
+    top    -- list top-n scripts
+    search -- search scripts by keyword
+    detail -- show scripts detail
+    info   -- show repositry info
+
+options is related with specific command, you can use 
+
+    %s <command> -h 
+
+for details
+''' % (sys.argv[0], sys.argv[0])
+    print "Usage:"
+    print MSG_USAGE
 
 if __name__ == "__main__":
-    argv = sys.argv
-    argc = len( argv )
-    if argc==1:
+
+    args = sys.argv[1:]
+    if len(args) == 0:
         help()
         exit()
 
-    command = argv[1]
-    if command == 'help':
+    command   = args[0]
+    left_args = args[1:]
+
+    if command == 'help' or command=='-h' or command =='--help':
         help()
-    elif command == 'update':
-        update_db()
-        pass
+
+    elif command=='update':
+        MSG_USAGE = "vpfound.py update [-b <begin>] [-e <end>] [-l <idlist>] [-n] [-a]"
+        parser= OptionParser(MSG_USAGE)
+        parser.add_option("-b", "--begin", action="store", type="int", dest="begin", default=1)
+        parser.add_option("-e", "--end",  action="store", type="int", dest="end", default=sys.maxint)
+        parser.add_option("-l", "--list", action="store", type="string", dest="ids", default='',
+                help='only update selected plugins with provided id,format is <id1,id2,id3,...>')
+        parser.add_option("-n", "--new", action="store_true", dest="new", default=True,
+                help='only fetch latest created or updated plugins')
+        parser.add_option("-a", "--all", action="store_true", dest="all", default=True,
+                help='only fetch all plugins')
+        options, args=parser.parse_args(left_args)
+
+        if len(options.ids)==0:
+            ids = []
+        else:
+            ids = options.ids.split(',')
+        new = not options.all
+        update(new=new, begin=options.begin, end=options.end, ids=ids)
+
     elif command == 'top':
-        top()
-        pass
+        MSG_USAGE = "vpfound.py top [-n <top n>] [-s <sort>] [-y year]"
+        parser= OptionParser(MSG_USAGE)
+
+        parser.add_option("-o", "--order", action="store", type="string", dest="sort", default='score', 
+                help="the order must be on of [score, downloads, ratings]")
+        parser.add_option("-y", "--year",  action="store", type="int", dest="year", default=0,
+                help="show plugins created in latest <n> years")
+        parser.add_option("-n", "--size",  action="store", type="int", dest="size", default=10, 
+                help ="show only <n> items")
+        options, args=parser.parse_args(left_args)
+        top(sort=options.sort, year=options.year, limit=options.size)
+
     elif command == 'search':
-        search(keyword)
-        pass
+        MSG_USAGE = "vpfound.py search <keyword> [-m]"
+        parser= OptionParser(MSG_USAGE)
+        parser.add_option("-m", "--more",  action="store_true", dest="more", default=False)
+        options, args=parser.parse_args(left_args)
+
+        if len(args) < 1:
+            parser.print_help()
+            exit(-1)
+        search(args[0], options.more)
+
     elif command == 'detail':
-        detail()
-        pass
+        MSG_USAGE = "vpfound.py detail <id or name>"
+        parser= OptionParser(MSG_USAGE)
+        options, args=parser.parse_args(left_args)
+        if len(args) < 1:
+            parser.print_help()
+            exit()
+        detail(args[0])
+
     elif command == 'grade':
-        grade()
-        pass
-    else command == 'run':
+        MSG_USAGE = "vpfound.py grade [<id or name>]"
+        parser= OptionParser(MSG_USAGE)
+        options, args=parser.parse_args(left_args)
+        if len(args) == 1:
+            grade(left_args[0])
+        elif len(args) == 0:
+            grade()
+        else:
+            parser.print_help()
+
+    elif command == 'info':
+        info()
+    elif command == 'run':
         print "python -m CGIHTTPServer"
     else:
-        print "cannot find command %s" % command
         help()
-
-    
-
-    #fetcher = Fetcher()
-#fetcher.refresh()
-    #grader = Grader()
-    #print grader.calcAvg()
-#grader.calc()
+        exit()

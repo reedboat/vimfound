@@ -89,7 +89,7 @@ class Fetcher:
         return data
 
 
-    def refresh(self, start=1, end=0):
+    def fetchAll(self, start=1, end=0):
         if end <= 0:
             end = self.getTotal()
         if end < start:
@@ -97,6 +97,7 @@ class Fetcher:
         pool=0
         pool_size=20
         model = PluginTable()
+        count = end - start
         for id in xrange(start, end):
             try:
                 if pool <= pool_size:
@@ -131,7 +132,7 @@ class Fetcher:
                         os._exit(0)
                     else:
                         print "cannot get script", id
-                        os._exit(0)
+                        os._exit(-2)
                 except:
                     print "error in getting script", id
                     traceback.print_exc()
@@ -143,36 +144,43 @@ class Fetcher:
                 result = os.waitpid(-1, os.WNOHANG)
                 if not result[0]:
                     print "Task finished"
-                    break;
+                    break
+                if result[1] < 0:
+                    count-=1
             except:
                 break;
+
+        return count
 
 
     def fetchNew(self):
         table = PluginTable()
         last_id, last_date=table.getLast()
         print last_id, last_date
-        self.refresh(last_id)
+        return self.fetchAll(last_id)
 
     def fetchSelected(self, idList):
         model = PluginTable()
+        count = 0
         for id in idList:
             try:
-                data = self.fetchPlugin(id)
+                data = self.fetchPlugin(int(id))
                 if not data:
                     print "plugin not exist ", id
                     continue
                 model.save(data)
+                count+=1
                 print "fetch plugin success ", id
             except:
                 print "fetch plugin error ", id
                 traceback.print_exc()
                 continue
+        return count
 
 
 if __name__ == '__main__':
     fetcher = Fetcher()
-    fetcher.refresh(1, 30)
-    fetcher.fetchSelected([31, 33, 35])
+    fetcher.updateAll(1, 30)
+    fetcher.updateSelected([31, 33, 35])
     print fetcher.getTotal()
     print fetcher.fetchNew()

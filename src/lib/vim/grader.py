@@ -53,36 +53,33 @@ class Grader:
         #    score += 1
         return score;
 
-    def calcPlugin(self, data, obj):
-        avg = self.calcAvg()
-        score = self.gradePlugin(data, avg)
-        obj.updateScore(int(data['id']), score)
-
     def calcAvg(self):
         table = PluginTable();
-        row   = table.queryBySql("select count(*) as items_count, sum(ratings) as total_ratings, sum(ratings_count) as total_ratings_count, sum(downloads) as total_downloads from scripts");
+        row   = table.execute('''select count(*) as items_count, sum(ratings) as total_ratings,
+                sum(ratings_count) as total_ratings_count, sum(downloads) as total_downloads from
+                scripts''')[0];
         avg_score = row['total_ratings'] / float(row['total_ratings_count'])
         avg_persons=row['total_ratings_count'] / float(row['items_count'])
-        print row
         return {'score':avg_score, 'persons':avg_persons}
 
-    def calc(self, id=0):
+    def calc(self, id=0, data=None):
         table = PluginTable()
         table.connect()
         id = int(id)
         avg = self.calcAvg()
 
         if id > 0:
-            data  = table.findPlugin(id)
+            data  = table.findById(id)
+        if data:
             score = self.gradePlugin(data, avg)
             table.updateScore(id, score)
-            print id, score
-            return True
+            return score
 
-        for row in table.query(None, None, 0):
+        rows=table.query(None, None, 0)
+        for row in rows:
             score = self.gradePlugin(row, avg)
             table.updateScore(row['id'], score)
-
+        return len(rows)
 
 if __name__ == '__main__':
     grader = Grader()

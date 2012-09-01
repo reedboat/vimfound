@@ -1,25 +1,6 @@
 import sqlite3
 import gl
 
-#| id | name | type | desc | user | user_link | create_date | update_date | ratings | ratings_count | downloads | versions | curr_version | score |
-#"""CREATE TABLE scripts(
-#   id INT PRIMARY KEY,
-#   name VARCHAR(256) NOT NULL DEFAULT '',
-#   type VARCHAR(32) NOT NULL DEFAULT '',
-#   desc TEXT NOT NULL DEFAULT '',
-#   user VARCHAR(64) NOT NULL DEFAULT '',
-#   user_link VARCHAR(64) NOT NULL DEFAULT '',
-#   create_date VARCHAR(16) NOT NULL DEFAULT '',
-#   update_date VARCHAR(16) NOT NULL DEFAULT '',
-#   ratings INT NOT NULL DEFAULT 0,
-#   ratings_count INT NOT NULL DEFAULT 0,
-#   downloads INT NOT NULL DEFAULT 0,
-#   versions INT NOT NULL DEFAULT 0,
-#   curr_version VARCHAR(64) NOT NULL DEFAULT '',
-#   score DOUBLE NOT NULL DEFAULT 0
-#   );"""
-
-
 def dict_factory(cursor, row):
     d = {}
     for idx, col in enumerate(cursor.description):
@@ -35,7 +16,6 @@ class PluginTable:
         self.db = path
 
     def open(self):
-        print self.db
         return sqlite3.connect(self.db)
 
     def connect(self):
@@ -44,14 +24,39 @@ class PluginTable:
     def close(self):
         self.conn.close()
 
+    def count(self):
+        sql="select count(id) as total from scripts"
+        rows = self.execute(sql)
+        return rows[0]["total"]
+
+
     def getLast(self):
+        rows=self.execute('SELECT id, update_date FROM scripts ORDER BY id DESC LIMIT 1');
+        if len(rows) > 0:
+            result = rows[0]
+        return result
+
+    def execute(self, sql):
         conn = self.open()
-        cur = conn.cursor()
-        cur.execute('SELECT id, update_date FROM scripts ORDER BY id DESC LIMIT 1');
-        result=cur.fetchone()
+        conn.row_factory = dict_factory
+        cur  = conn.cursor()
+        cur.execute(sql)
+        result = cur.fetchall()
         cur.close()
         conn.close()
         return result
+
+    def findByName(self, name):
+        sql = "select * from scripts where name='%s'" % name
+        rows=self.execute(sql)
+        if len(rows) > 0:
+            return rows[0]
+
+    def findById(self, id):
+        sql = "select * from scripts where id=" + str(id)
+        rows=self.execute(sql)
+        if len(rows) > 0:
+            return rows[0]
 
     def save(self, data):
         conn = self.open()
@@ -64,16 +69,6 @@ class PluginTable:
         conn.commit()
         cur.close()
         conn.close()
-
-    def findPlugin(self, id):
-        conn = self.open()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-        cur.execute('SELECT * FROM scripts where id=?', (id,));
-        data = cur.fetchone()
-        cur.close()
-        conn.close()
-        return data
 
     def updateScore(self, id, score):
         self.conn.execute("UPDATE scripts SET score=? WHERE id=?", (score, id))
@@ -93,16 +88,6 @@ class PluginTable:
             print data
             op(data, self)
         conn.close()
-
-    def queryBySql(self, sql):
-        conn = self.open()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-        cur.execute(sql)
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
-        return row
 
     def query(self, condition=None, sort='score', limit=50, offset=0):
         conn = self.open()
